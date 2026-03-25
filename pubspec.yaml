@@ -1,0 +1,39 @@
+name: safewalk
+description: "An application made for users to view locations of crime with risk level."
+
+publish_to: 'none' 
+
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+
+dependencies:
+  flutter:
+    sdk: flutter
+    
+  flutter_bloc: ^8.1.0
+  http: ^1.1.0
+  equatable: ^2.0.5  # Add this too, as it's used in your admin_state.dart
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+
+  flutter_lints: ^6.0.0
+
+flutter:
+
+  uses-material-design: true
+
+
+  assets:
+    - assets/verify_success.png
+    - assets/dismiss_success.png
+  
+
