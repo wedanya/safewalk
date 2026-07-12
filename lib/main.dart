@@ -1,95 +1,106 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// --- IMPORTANT: Ensure these match your actual folder names ---
-import 'presentation/admin/dashboard_page.dart';
-import 'presentation/admin/kmeans_page.dart';
-import 'presentation/admin/report_list_page.dart';
-import 'logic/admin_cubit/admin_logic.dart';
-import 'presentation/dev_entry_page.dart';
+import 'presentation/auth/login_page.dart';
+import 'presentation/user/user_main.dart';
+import 'presentation/admin/admin_main.dart';
 
-void main() {
-  runApp(const AdminMain());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://mrudrkobwnxnmiyekwhp.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ydWRya29id254bm1peWVrd2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NjExNzEsImV4cCI6MjA5NDEzNzE3MX0.OV_MwKoR4F8L-jMJHzuF2BaBIdfmIdIt80a_ODmgeIg',
+  );
+
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
+
+  runApp(const SafeWalkApp());
 }
 
-class AdminMain extends StatelessWidget {
-  const AdminMain({super.key});
+class SafeWalkApp extends StatelessWidget {
+  const SafeWalkApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      // This initializes the brain of the Admin panel and fetches data immediately
-      create: (context) => AdminCubit()..fetchPendingReports(),
-      child: MaterialApp(
-        title: 'SafeWalk Admin',
-        debugShowCheckedModeBanner: false, // Removes the debug banner
-        theme: ThemeData(
-          useMaterial3: true,
-          // FIX: This solves the "Failed assertion" red screen error
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.red,
-            brightness: Brightness.light, 
-          ),
-          brightness: Brightness.light,
+    return MaterialApp(
+      title: 'SafeWalk',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF3B71FE),
+          primary: const Color(0xFF3B71FE),
         ),
-        home: const DevEntryPage(),
+        scaffoldBackgroundColor: const Color(0xFFF7F8FC),
       ),
+      home: const AuthGate(),
     );
   }
 }
 
-class AdminBottomNav extends StatefulWidget {
-  const AdminBottomNav({super.key});
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
 
   @override
-  State<AdminBottomNav> createState() => _AdminBottomNavState();
+  State<AuthGate> createState() => _AuthGateState();
 }
 
-class _AdminBottomNavState extends State<AdminBottomNav> {
-  int _currentIndex = 0;
+class _AuthGateState extends State<AuthGate> {
+  bool    _checking    = true;
+  Widget? _destination;
 
-  // The list of pages defined in your separate files
-  final List<Widget> _pages = const [
-    DashboardPage(),
-    ReportListPage(),
-    KMeansPage(),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _checkSession();
+  }
+
+  Future<void> _checkSession() async {
+    try {
+      // Check for an existing valid session — do NOT auto-refresh,
+      // so a logged-out user always lands on LoginPage.
+      final session = Supabase.instance.client.auth.currentSession;
+
+      if (session == null) {
+        _resolve(const LoginPage());
+        return;
+      }
+
+      final uid = session.user.id;
+
+      // Check role
+      final admin = await Supabase.instance.client
+          .from('admins')
+          .select('id')
+          .eq('id', uid)
+          .maybeSingle();
+
+      _resolve(admin != null ? const AdminMain() : const UserMain());
+    } catch (_) {
+      // Any error → send to login
+      _resolve(const LoginPage());
+    }
+  }
+
+  void _resolve(Widget page) {
+    if (mounted) setState(() { _destination = page; _checking = false; });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        selectedItemColor: Colors.redAccent,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: "Stats",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fact_check_outlined),
-            activeIcon: Icon(Icons.fact_check),
-            label: "Verify",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.analytics_outlined),
-            activeIcon: Icon(Icons.analytics),
-            label: "K-Means",
-          ),
-        ],
-      ),
-    );
+    if (_checking) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF3B71FE)),
+        ),
+      );
+    }
+    return _destination!;
   }
 }

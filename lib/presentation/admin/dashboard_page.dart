@@ -46,7 +46,9 @@ actions: [
         },
         child: BlocBuilder<AdminCubit, AdminState>(
           builder: (context, state) {
-            int pendingCount = (state is AdminLoaded) ? state.reports.length : 0;
+            int pendingCount  = (state is AdminLoaded) ? state.pendingCount : 0;
+            int verifiedCount = (state is AdminLoaded) ? state.verifiedCount : 0;
+            int dismissedCount = (state is AdminLoaded) ? state.dismissedCount : 0;
 
             return SingleChildScrollView(
               // Physics ensures pull-to-refresh works even if content is small
@@ -74,10 +76,14 @@ actions: [
                     mainAxisSpacing: 15,
                     childAspectRatio: 1.2,
                     children: [
-                      _miniStatCard("Verified", "128", Icons.check_circle, Colors.green),
-                      _miniStatCard("Red Zones", "5", Icons.location_on, Colors.red),
-                      _miniStatCard("Active Users", "1.2k", Icons.people, Colors.blue),
-                      _miniStatCard("Accuracy", "94%", Icons.auto_graph, Colors.purple),
+                      _miniStatCard("Verified", verifiedCount.toString(), Icons.check_circle, Colors.green),
+                      _miniStatCard("Dismissed", dismissedCount.toString(), Icons.cancel, Colors.red),
+                      _miniStatCard("Total Reports", (pendingCount + verifiedCount + dismissedCount).toString(), Icons.bar_chart, Colors.blue),
+                      _miniStatCard("Verified %",
+                        (verifiedCount + pendingCount + dismissedCount) > 0
+                          ? "${((verifiedCount / (verifiedCount + pendingCount + dismissedCount)) * 100).toStringAsFixed(0)}%"
+                          : "N/A",
+                        Icons.auto_graph, Colors.purple),
                     ],
                   ),
                   

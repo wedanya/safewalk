@@ -1,63 +1,92 @@
-@override
+import 'package:flutter/material.dart';
+import 'home_map_page.dart';
+import 'alerts_page.dart';
+import 'new_report_page.dart';
+import 'my_reports_page.dart';
+import 'profile_page.dart';
+
+class UserMain extends StatefulWidget {
+  const UserMain({super.key});
+
+  @override
+  State<UserMain> createState() => _UserMainState();
+}
+
+class _UserMainState extends State<UserMain> {
+  int _currentIndex = 0;
+
+  final List<Widget> _pages = [
+    const HomeMapPage(),      // index 0
+    const AlertsPage(),       // index 1
+    const NewReportPage(),    // index 2  (centre + button)
+    const MyReportsPage(),    // index 3
+    const ProfilePage(),      // index 4
+  ];
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // Allows map to sit behind AppBar
-      extendBody: true, 
-      
-      // MOVED APPBAR HERE
-      appBar: _currentIndex == 0 ? AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const Padding(
-          padding: EdgeInsets.all(8.0),
-          child: CircleAvatar(
-            backgroundColor: Colors.white,
-            child: Icon(Icons.person_outline, color: Colors.blue),
-          ),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text("SafeWalk KT", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
-            Text("LIVE PROTECTION", style: TextStyle(color: Colors.grey, fontSize: 10)),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.notifications, color: Colors.black)),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const CircleAvatar(backgroundColor: Colors.white, child: Icon(Icons.tune, color: Colors.black)),
-            onPressed: () {},
-          ),
-        ],
-      ) : null, // Only show AppBar on the Map (Explore) tab
-
+      extendBody: true,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
       ),
+      bottomNavigationBar: _buildFloatingDock(),
+    );
+  }
 
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _currentIndex == 0 ? Container( // Only show button on Map tab
-        height: 55,
-        width: MediaQuery.of(context).size.width * 0.45,
-        margin: const EdgeInsets.only(bottom: 20),
-        child: FloatingActionButton.extended(
-          elevation: 4,
-          backgroundColor: const Color(0xFF3B71FE),
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ReportIncidentPage()),
-            );
-          },
-          icon: const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 20),
-          label: const Text("Quick Report", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+  Widget _buildFloatingDock() {
+    return Container(
+      height: 80,
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(40),
+        boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 20)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildNavItem(Icons.map_outlined, Icons.map, 0),
+          _buildNavItem(Icons.notifications_none, Icons.notifications, 1),
+          // Centre + button (new_report_page, index 2)
+          GestureDetector(
+            onTap: () => setState(() => _currentIndex = 2),
+            child: Container(
+              padding: const EdgeInsets.all(15),
+              decoration: const BoxDecoration(
+                color: Color(0xFF3B71FE),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.add, color: Colors.white, size: 32),
+            ),
+          ),
+          _buildNavItem(Icons.article_outlined, Icons.article, 3),
+          _buildNavItem(Icons.person_outline, Icons.person, 4),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNavItem(IconData outlineIcon, IconData filledIcon, int index) {
+    final bool isActive = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => _currentIndex = index),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: isActive
+            ? BoxDecoration(
+                // ignore: deprecated_member_use
+                color: const Color(0xFF3B71FE).withOpacity(0.1),
+                shape: BoxShape.circle,
+              )
+            : null,
+        child: Icon(
+          isActive ? filledIcon : outlineIcon,
+          color: isActive ? const Color(0xFF3B71FE) : const Color(0xFF7B8BB2),
+          size: 28,
         ),
-      ) : null,
-
-      bottomNavigationBar: Container(
-        // ... (Keep your BottomNavigationBar code exactly as it was)
+      ),
+    );
+  }
+}

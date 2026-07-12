@@ -1,0 +1,72 @@
+[
+    {
+        "district": "Besut",
+        "lat": 5.833,
+        "lng": 102.5,
+        "type": "Annual Crime Summary",
+        "risk": "Safe",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Dungun",
+        "lat": 4.75,
+        "lng": 103.4167,
+        "type": "Annual Crime Summary",
+        "risk": "Safe",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Hulu Terengganu",
+        "lat": 5.1,
+        "lng": 102.8333,
+        "type": "Annual Crime Summary",
+        "risk": "Safe",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Kemaman",
+        "lat": 4.2167,
+        "lng": 103.4167,
+        "type": "Annual Crime Summary",
+        "risk": "Caution",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Kuala Terengganu",
+        "lat": 5.3302,
+        "lng": 103.1148,
+        "type": "Annual Crime Summary",
+        "risk": "Caution",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Marang",
+        "lat": 5.2,
+        "lng": 103.2,
+        "type": "Annual Crime Summary",
+        "risk": "Safe",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    },
+    {
+        "district": "Setiu",
+        "lat": 5.5,
+        "lng": 102.75,
+        "type": "Annual Crime Summary",
+        "risk": "Safe",
+        "user": "OpenDOSM (Official)",
+        "date": "Full Year 2023",
+        "status": "Verified Stat"
+    }
+]

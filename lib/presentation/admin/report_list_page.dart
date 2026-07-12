@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../logic/admin_cubit/admin_logic.dart';
 import 'report_details_page.dart';
 
 class ReportListPage extends StatefulWidget {
@@ -9,39 +11,25 @@ class ReportListPage extends StatefulWidget {
   State<ReportListPage> createState() => _ReportListPageState();
 }
 
-class _ReportListPageState extends State<ReportListPage> with SingleTickerProviderStateMixin {
+class _ReportListPageState extends State<ReportListPage>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String searchQuery = "";
-
-  // The local "database" of reports
-  final List<Map<String, String>> allReports = [
-    {"title": "Harassment Incident", "location": "Jalan Sultan Zainal Abidin", "time": "5 mins ago", "status": "Waiting"},
-    {"title": "Street Light Outage", "location": "Kampung Cina", "time": "14 mins ago", "status": "Waiting"},
-    {"title": "Suspicious Activity", "location": "Batu Burok Beach", "time": "2 hours ago", "status": "Verified"},
-    {"title": "Vandalism", "location": "Pasar Payang", "time": "1 day ago", "status": "Dismissed", "reason": "Duplicate report already filed."},
-  ];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(
-        length: 3, 
-        vsync: this, 
-        initialIndex: widget.initialTabIndex
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex,
     );
   }
 
-  // Helper function to update the status and reason of a report
-  void _updateReportStatus(String title, String newStatus, {String? reason}) {
-    setState(() {
-      int index = allReports.indexWhere((report) => report['title'] == title);
-      if (index != -1) {
-        allReports[index]['status'] = newStatus;
-        if (reason != null && reason.isNotEmpty) {
-          allReports[index]['reason'] = reason;
-        }
-      }
-    });
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   @override
@@ -51,131 +39,226 @@ class _ReportListPageState extends State<ReportListPage> with SingleTickerProvid
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text("SafeWalk Admin", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const SizedBox.shrink(),
+        actions: [
+          BlocBuilder<AdminCubit, AdminState>(
+            builder: (context, state) {
+              if (state is AdminLoading) {
+                return const Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Center(
+                    child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+                );
+              }
+              return IconButton(
+                icon: const Icon(Icons.refresh, color: Colors.blue),
+                onPressed: () =>
+                    context.read<AdminCubit>().fetchPendingReports(),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.blue,
           unselectedLabelColor: Colors.grey,
           indicatorColor: Colors.blue,
-          tabs: const [
-            Tab(text: "Waiting"),
-            Tab(text: "Verified"),
-            Tab(text: "Dismissed"),
+          // Show live counts on each tab
+          tabs: [
+            BlocBuilder<AdminCubit, AdminState>(
+              builder: (context, state) {
+                final n = state is AdminLoaded ? state.pendingCount : 0;
+                return Tab(text: "Waiting${n > 0 ? ' ($n)' : ''}");
+              },
+            ),
+            BlocBuilder<AdminCubit, AdminState>(
+              builder: (context, state) {
+                final n = state is AdminLoaded ? state.verifiedCount : 0;
+                return Tab(text: "Verified${n > 0 ? ' ($n)' : ''}");
+              },
+            ),
+            BlocBuilder<AdminCubit, AdminState>(
+              builder: (context, state) {
+                final n = state is AdminLoaded ? state.dismissedCount : 0;
+                return Tab(text: "Dismissed${n > 0 ? ' ($n)' : ''}");
+              },
+            ),
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              onChanged: (value) {
-                setState(() {
-                  searchQuery = value.toLowerCase();
-                });
-              },
-              decoration: InputDecoration(
-                hintText: "Search by incident or location...",
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.grey[200],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+      body: BlocListener<AdminCubit, AdminState>(
+        // Show snackbar on error without rebuilding the whole page
+        listenWhen: (_, curr) => curr is AdminError,
+        listener: (context, state) {
+          if (state is AdminError) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(state.message),
+              backgroundColor: Colors.red,
+            ));
+          }
+        },
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: TextField(
+                onChanged: (value) =>
+                    setState(() => searchQuery = value.toLowerCase()),
+                decoration: InputDecoration(
+                  hintText: "Search by incident or location...",
+                  prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: Colors.grey[200],
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none),
+                ),
               ),
             ),
-          ),
-          Expanded(
-            child: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildFilteredList("Waiting"),
-                _buildFilteredList("Verified"),
-                _buildFilteredList("Dismissed"),
-              ],
+            Expanded(
+              child: BlocBuilder<AdminCubit, AdminState>(
+                builder: (context, state) {
+                  if (state is AdminLoading) {
+                    return const Center(
+                        child: CircularProgressIndicator(color: Colors.blue));
+                  }
+                  if (state is AdminError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.wifi_off_rounded,
+                              size: 60, color: Colors.grey),
+                          const SizedBox(height: 12),
+                          Text(state.message,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.grey)),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: () => context
+                                .read<AdminCubit>()
+                                .fetchPendingReports(),
+                            child: const Text("Retry"),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Both AdminInitial and AdminLoaded fall through here
+                  final reports =
+                      state is AdminLoaded ? state.reports : <Map<String, dynamic>>[];
+
+                  return TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildFilteredList(context, reports, 'pending'),
+                      _buildFilteredList(context, reports, 'verified'),
+                      _buildFilteredList(context, reports, 'dismissed'),
+                    ],
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildFilteredList(String status) {
-    final filteredList = allReports.where((report) {
-      final matchesStatus = report['status'] == status;
-      final matchesSearch = report['title']!.toLowerCase().contains(searchQuery) || 
-                            report['location']!.toLowerCase().contains(searchQuery);
+  Widget _buildFilteredList(
+      BuildContext context, List<Map<String, dynamic>> reports, String status) {
+    final filtered = reports.where((r) {
+      // Support both 'status' field and the old boolean 'verified' field
+      final reportStatus = r['status']?.toString().toLowerCase() ??
+          (r['verified'] == true ? 'verified' : 'pending');
+      final matchesStatus = reportStatus == status;
+      final title = (r['title'] ?? r['type'] ?? '').toString().toLowerCase();
+      final location = (r['location'] ?? r['district'] ?? '').toString().toLowerCase();
+      final matchesSearch =
+          title.contains(searchQuery) || location.contains(searchQuery);
       return matchesStatus && matchesSearch;
     }).toList();
 
-    // Empty state UI
-    if (filteredList.isEmpty) {
+    if (filtered.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.inbox_rounded, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text("No $status reports found.", 
-              style: TextStyle(color: Colors.grey[500], fontWeight: FontWeight.w500)),
+            Text("No $status reports found.",
+                style: TextStyle(
+                    color: Colors.grey[500], fontWeight: FontWeight.w500)),
           ],
         ),
       );
     }
 
-    Color cardColor;
-    if (status == "Waiting") {
-      cardColor = Colors.orange[50]!;
-    } else if (status == "Verified") {
-      cardColor = Colors.green[50]!;
-    } else {
-      cardColor = Colors.grey[200]!;
-    }
+    final cardColor = status == 'pending'
+        ? Colors.orange[50]!
+        : status == 'verified'
+            ? Colors.green[50]!
+            : Colors.grey[200]!;
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: filteredList.length,
-      itemBuilder: (context, index) {
-        final item = filteredList[index];
-        return _reportCard(
-          context, 
-          item['title']!, 
-          "${item['time']} • ${item['location']}", 
-          cardColor, 
-          status,
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: () => context.read<AdminCubit>().fetchPendingReports(),
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: filtered.length,
+        itemBuilder: (context, index) {
+          final item = filtered[index];
+          final title =
+              (item['title'] ?? item['type'] ?? 'Incident').toString();
+          final location =
+              (item['location'] ?? item['district'] ?? 'Unknown').toString();
+          final time = (item['time'] ?? item['created_at'] ?? '').toString();
+          final sub = [if (time.isNotEmpty) time, location]
+              .join(' • ');
+
+          return _reportCard(
+            context,
+            item,
+            title,
+            sub,
+            cardColor,
+            status,
+          );
+        },
+      ),
     );
   }
 
-  Widget _reportCard(BuildContext context, String title, String sub, Color backgroundColor, String status) {
+  Widget _reportCard(BuildContext context, Map<String, dynamic> item,
+      String title, String sub, Color backgroundColor, String status) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        // ignore: deprecated_member_use
-        side: BorderSide(color: backgroundColor.withOpacity(0.5), width: 1),
+        side: BorderSide(
+            // ignore: deprecated_member_use
+            color: backgroundColor.withOpacity(0.5),
+            width: 1),
       ),
       color: backgroundColor,
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () {
-          // Find existing reason safely
-          final reportData = allReports.firstWhere(
-            (r) => r['title'] == title,
-            orElse: () => {},
-          );
-
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => ReportDetailsPage(
+              builder: (_) => ReportDetailsPage(
+                reportId: item['id']?.toString() ?? '',
                 status: status,
                 title: title,
-                location: sub,
-                dismissReason: reportData['reason'], // Passing the saved reason
-                onStatusUpdate: (newStatus, reason) {
-                  _updateReportStatus(title, newStatus, reason: reason);
-                },
+                location: (item['location'] ?? item['district'] ?? '').toString(),
+                dismissReason: item['dismiss_reason']?.toString(),
+                details: item['details']?.toString(),
               ),
             ),
           );
@@ -188,23 +271,29 @@ class _ReportListPageState extends State<ReportListPage> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(title,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 4),
-                    Text(sub, style: TextStyle(color: Colors.grey[700], fontSize: 13)),
+                    Text(sub,
+                        style:
+                            TextStyle(color: Colors.grey[700], fontSize: 13)),
                     const SizedBox(height: 10),
-                    const Text("View details >", 
-                      style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const Text("View details >",
+                        style: TextStyle(
+                            color: Colors.blueAccent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12)),
                   ],
                 ),
               ),
               Container(
-                width: 45, 
-                height: 45, 
+                width: 45,
+                height: 45,
                 decoration: BoxDecoration(
-                  // ignore: deprecated_member_use
-                  color: Colors.white.withOpacity(0.8), 
-                  borderRadius: BorderRadius.circular(10)
-                ),
+                    // ignore: deprecated_member_use
+                    color: Colors.white.withOpacity(0.8),
+                    borderRadius: BorderRadius.circular(10)),
                 child: const Icon(Icons.location_on, color: Colors.blue),
               ),
             ],

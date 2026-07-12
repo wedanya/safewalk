@@ -13,12 +13,23 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-    
+  geolocator: ^12.0.0 
   flutter_bloc: ^8.1.0
   http: ^1.1.0
   equatable: ^2.0.5  # Add this too, as it's used in your admin_state.dart
-
   cupertino_icons: ^1.0.8
+  flutter_map: ^7.0.2
+  supabase_flutter: ^2.5.0
+  latlong2: ^0.9.1
+  geocoding: ^3.0.0        # For turning text into coordinates
+  flutter_map_animations: 0.8.0
+  flutter_local_notifications: ^17.0.0
+  shared_preferences: ^2.2.3   # offline cache storage
+  connectivity_plus: ^6.0.3    # network status watcher
+  image_picker: ^1.2.2
+  sensors_plus: ^4.0.2        # shake detection
+  url_launcher: ^6.3.0        # tel: URI for calling
+  mapbox_maps_flutter: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -35,5 +46,6 @@ flutter:
   assets:
     - assets/verify_success.png
     - assets/dismiss_success.png
+    - assets/data/hotspots.json
   
 

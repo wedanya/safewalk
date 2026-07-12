@@ -45,5 +45,14 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+<string>SafeWalk needs your location to tag incident reports accurately.</string>
+
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>SafeWalk needs your location to tag incident reports accurately.</string>
+
+<key>NSLocationAlwaysUsageDescription</key>
+<string>SafeWalk needs your location to tag incident reports accurately.</string>
 </dict>
 </plist>
