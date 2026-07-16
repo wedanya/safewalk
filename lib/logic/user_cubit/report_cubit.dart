@@ -109,6 +109,7 @@ class ReportCubit extends Cubit<ReportState> {
       'user_id':    _db.auth.currentUser?.id,
       'created_at': DateTime.now().toUtc().toIso8601String(),
       'image_url': imageUrl,
+      'crime_count': 1,   // ← add this — each user submission = 1 case toward cluster risk
     };
 
     // Offline — queue the report locally

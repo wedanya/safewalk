@@ -10,11 +10,6 @@ class KMeansPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: const Text("Algorithm Management"),
-        elevation: 0,
-        backgroundColor: Colors.white,
-      ),
       body: BlocConsumer<AdminCubit, AdminState>(
         // Show snackbar for success message or errors
         listenWhen: (_, curr) =>
@@ -53,14 +48,15 @@ class KMeansPage extends StatelessWidget {
                   child: const Icon(Icons.radar, size: 72, color: Colors.redAccent),
                 ),
                 const SizedBox(height: 24),
-                const Text("Update Red Zone Clusters",
+                const Text("Recalculate Risk Zones",
                     style:
                         TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 Text(
-                  "This triggers the Scikit-Learn K-Means script to recalculate "
-                  "hotspot clusters for Kuala Terengganu based on the latest "
-                  "verified incident data.",
+                  "This runs K-Means clustering on the latest verified reports "
+                  "and groups them into walkable-sized zones (roughly 500m across). "
+                  "Each zone is labeled Danger, Caution, or Safe based on how many "
+                  "verified reports fall inside it.",
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey[600], height: 1.5),
                 ),

@@ -10,34 +10,6 @@ class DashboardPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: const Text("System Overview",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        // Inside AppBar actions
-actions: [
-  BlocBuilder<AdminCubit, AdminState>(
-    builder: (context, state) {
-      if (state is AdminLoading) { // Check if your Cubit state is loading
-        return const Center(
-          child: Padding(
-            padding: EdgeInsets.only(right: 15),
-            child: SizedBox(
-              width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
-            ),
-          ),
-        );
-      }
-      return IconButton(
-        icon: const Icon(Icons.refresh, color: Colors.blue),
-        onPressed: () => context.read<AdminCubit>().fetchPendingReports(),
-      );
-    },
-  )
-],
-      ),
       // --- WRAP BODY WITH REFRESH INDICATOR ---
       body: RefreshIndicator(
         onRefresh: () async {
@@ -57,8 +29,30 @@ actions: [
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text("Quick Statistics",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("Quick Statistics",
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      BlocBuilder<AdminCubit, AdminState>(
+                        builder: (context, state) {
+                          if (state is AdminLoading) {
+                            return const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.blue),
+                              ),
+                            );
+                          }
+                          return IconButton(
+                            icon: const Icon(Icons.refresh, color: Colors.blue),
+                            onPressed: () => context.read<AdminCubit>().fetchPendingReports(),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 15),
                   
                   // Top Row: Big Primary Metric

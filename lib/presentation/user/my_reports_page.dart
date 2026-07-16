@@ -75,7 +75,25 @@ class _MyReportsView extends StatelessWidget {
   }
 }
 
-// ── Report list ───────────────────────────────────────────────────────────────
+// ── Sorting / grouping helpers ──────────────────────────────────────────────
+
+DateTime _reportDate(Map<String, dynamic> report) {
+  final raw = report['created_at'];
+  if (raw == null) return DateTime.fromMillisecondsSinceEpoch(0);
+  try {
+    return DateTime.parse(raw.toString());
+  } catch (_) {
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+}
+
+List<Map<String, dynamic>> _sortedNewestFirst(List<Map<String, dynamic>> reports) {
+  final sorted = List<Map<String, dynamic>>.from(reports);
+  sorted.sort((a, b) => _reportDate(b).compareTo(_reportDate(a)));
+  return sorted;
+}
+
+// ── Report list — grouped into Verified / Under Review / Pending sections ──
 
 class _ReportList extends StatelessWidget {
   final List<Map<String, dynamic>> reports;
@@ -83,16 +101,95 @@ class _ReportList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final verified = _sortedNewestFirst(
+        reports.where((r) => r['verified'] == true).toList());
+    final dismissed = _sortedNewestFirst(reports
+        .where((r) => r['verified'] != true && r['dismissed'] == true)
+        .toList());
+    final pending = _sortedNewestFirst(reports
+        .where((r) => r['verified'] != true && r['dismissed'] != true)
+        .toList());
+
     return RefreshIndicator(
       color: const Color(0xFF3B71FE),
       onRefresh: () => context.read<MyReportsCubit>().fetchMyReports(),
-      child: ListView.separated(
+      child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 120),
-        itemCount: reports.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (context, i) =>
-            _ReportCard(report: reports[i]),
+        children: [
+          _SectionHeader(
+              label: "Verified", count: verified.length, color: const Color(0xFF2DBD72)),
+          const SizedBox(height: 10),
+          if (verified.isEmpty)
+            const _SectionEmptyNote(text: "No verified reports yet")
+          else
+            ...verified.expand((r) => [
+                  _ReportCard(report: r),
+                  const SizedBox(height: 12),
+                ]),
+
+          const SizedBox(height: 20),
+
+          _SectionHeader(
+              label: "Pending", count: pending.length, color: Colors.orange),
+          const SizedBox(height: 10),
+          if (pending.isEmpty)
+            const _SectionEmptyNote(text: "No pending reports")
+          else
+            ...pending.expand((r) => [
+                  _ReportCard(report: r),
+                  const SizedBox(height: 12),
+                ]),
+
+          const SizedBox(height: 20),
+
+          _SectionHeader(
+              label: "Dismissed", count: dismissed.length, color: Colors.grey),
+          const SizedBox(height: 10),
+          if (dismissed.isEmpty)
+            const _SectionEmptyNote(text: "No dismissed reports")
+          else
+            ...dismissed.expand((r) => [
+                  _ReportCard(report: r),
+                  const SizedBox(height: 12),
+                ]),
+        ],
       ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  const _SectionHeader({required this.label, required this.count, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(children: [
+      Container(width: 8, height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 8),
+      Text(label,
+          style: const TextStyle(
+              fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF22355F))),
+      const SizedBox(width: 6),
+      Text("($count)",
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+    ]);
+  }
+}
+
+class _SectionEmptyNote extends StatelessWidget {
+  final String text;
+  const _SectionEmptyNote({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Text(text,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade400, fontStyle: FontStyle.italic)),
     );
   }
 }
@@ -111,14 +208,16 @@ class _ReportCard extends StatelessWidget {
     "Harassment": Icons.shield_outlined,
   };
 
-  Color _statusColor(bool? verified) {
-    if (verified == null) return Colors.grey;
-    return verified ? const Color(0xFF2DBD72) : Colors.orange;
+  Color _statusColor(bool? verified, bool? dismissed) {
+    if (verified == true) return const Color(0xFF2DBD72);
+    if (dismissed == true) return Colors.grey;
+    return Colors.orange;
   }
 
-  String _statusLabel(bool? verified) {
-    if (verified == null) return "Pending";
-    return verified ? "Verified" : "Under Review";
+  String _statusLabel(bool? verified, bool? dismissed) {
+    if (verified == true) return "Verified";
+    if (dismissed == true) return "Dismissed";
+    return "Pending";
   }
 
   String _formatDate(dynamic raw) {
@@ -136,8 +235,11 @@ class _ReportCard extends StatelessWidget {
     }
   }
 
-  void _confirmDelete(BuildContext context) {
-    showDialog(
+  // Shows the same confirmation dialog as before. Returns true only if the
+  // user actually confirms — used both by the swipe gesture and can be
+  // reused if a manual delete trigger is added elsewhere.
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         shape:
@@ -148,17 +250,12 @@ class _ReportCard extends StatelessWidget {
             "Are you sure you want to delete this report? This cannot be undone."),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text("Cancel",
                 style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              context
-                  .read<MyReportsCubit>()
-                  .deleteReport(report['id'].toString());
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
@@ -169,19 +266,23 @@ class _ReportCard extends StatelessWidget {
         ],
       ),
     );
+    return confirmed == true;
   }
 
   @override
   Widget build(BuildContext context) {
     final type = report['type'] as String? ?? "Unknown";
     final verified = report['verified'] as bool?;
+    final dismissed = report['dismissed'] as bool?;
+    final dismissReason = report['dismiss_reason'] as String?;
     final details = report['details'] as String? ?? '';
     final date = _formatDate(report['created_at']);
     final icon = _typeIcons[type] ?? Icons.report_outlined;
-    final statusColor = _statusColor(verified);
-    final statusLabel = _statusLabel(verified);
+    final statusColor = _statusColor(verified, dismissed);
+    final statusLabel = _statusLabel(verified, dismissed);
+    final reportId = report['id']?.toString() ?? '';
 
-    return Container(
+    final card = Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -252,6 +353,26 @@ class _ReportCard extends StatelessWidget {
             ),
           ],
 
+          if (dismissed == true && dismissReason != null && dismissReason.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text("Reason: $dismissReason",
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ),
+              ]),
+            ),
+          ],
+
           // ── Location row ─────────────────────────────────────────────────
           const SizedBox(height: 12),
           Row(children: [
@@ -264,22 +385,46 @@ class _ReportCard extends StatelessWidget {
                   TextStyle(fontSize: 12, color: Colors.grey.shade500),
             ),
             const Spacer(),
-            // Delete button (only for unverified)
+            // Small trash icon hint — shows this card is deletable/swipeable.
             if (verified != true)
-              GestureDetector(
-                onTap: () => _confirmDelete(context),
-                child: Row(children: [
-                  Icon(Icons.delete_outline,
-                      size: 15, color: Colors.red.shade300),
-                  const SizedBox(width: 3),
-                  Text("Delete",
-                      style: TextStyle(
-                          fontSize: 11, color: Colors.red.shade300)),
-                ]),
-              ),
+              Icon(Icons.delete_outline_rounded, size: 17, color: Colors.grey.shade400),
           ]),
         ]),
       ),
+    );
+
+    // Verified reports are official records — keep them non-swipeable,
+    // same as before where the old Delete link only showed for unverified.
+    if (verified == true || reportId.isEmpty) {
+      return card;
+    }
+
+    return Dismissible(
+      key: ValueKey('report_$reportId'),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(context),
+      onDismissed: (_) {
+        context.read<MyReportsCubit>().deleteReport(reportId);
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        margin: EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: Colors.red.shade400,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.delete_outline, color: Colors.white, size: 22),
+            SizedBox(width: 8),
+            Text("Delete",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      child: card,
     );
   }
 }

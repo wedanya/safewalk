@@ -84,6 +84,7 @@ class _AdminBottomNavState extends State<AdminBottomNav> {
         backgroundColor: Colors.white,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leadingWidth: 100,
         // ADMIN badge on the LEFT
         leading: Padding(
           padding: const EdgeInsets.only(left: 12),
@@ -156,8 +157,8 @@ class _AdminBottomNavState extends State<AdminBottomNav> {
     switch (index) {
       case 0: return 'System Overview';
       case 1: return 'Verify Reports';
-      case 2: return 'Algorithm Management';
+      case 2: return 'Hotspot Management';
       default: return 'SafeWalk Admin';
     }
   }
-}
+}  

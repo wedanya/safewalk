@@ -13,12 +13,20 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
   List<Map<String, dynamic>> _hotspots = [];
   bool _isLoading = true;
   int? _focusedCluster; // which cluster to fly to on map
+  String _riskFilter = 'All'; // All / Danger / Caution / Safe
   final MapController _mapController = MapController();
 
-  static const List<Color> _clusterColors = [
-    Colors.red, Colors.blue, Colors.green,
-    Colors.purple, Colors.orange, Colors.teal,
-  ];
+  static const Color _dangerColor  = Color(0xFFFF3B30);
+  static const Color _cautionColor = Color(0xFFFF9500);
+  static const Color _safeColor    = Color(0xFF34C759);
+
+  Color _riskColor(String? risk) {
+    switch (risk) {
+      case 'Danger':  return _dangerColor;
+      case 'Caution': return _cautionColor;
+      default:        return _safeColor;
+    }
+  }
 
   @override
   void initState() {
@@ -31,7 +39,7 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
     try {
       final data = await Supabase.instance.client
           .from('hotspots')
-          .select('id, district, lat, lng, cluster, crime_count, type')
+          .select('id, district, lat, lng, cluster, crime_count, type, risk')
           .eq('verified', true)
           .order('cluster');
       setState(() {
@@ -50,6 +58,16 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
       map.putIfAbsent(key, () => []).add(h);
     }
     return map;
+  }
+
+  String _clusterRisk(List<Map<String, dynamic>> members) =>
+      members.isNotEmpty ? (members.first['risk'] as String? ?? 'Safe') : 'Safe';
+
+  // Cluster entries after applying the selected risk filter chip.
+  List<MapEntry<int, List<Map<String, dynamic>>>> get _filteredEntries {
+    final entries = _grouped.entries.where((e) => e.key >= 0).toList();
+    if (_riskFilter == 'All') return entries;
+    return entries.where((e) => _clusterRisk(e.value) == _riskFilter).toList();
   }
 
   // Compute centroid of a cluster
@@ -102,7 +120,7 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
                         MarkerLayer(
                           markers: _hotspots.map((h) {
                             final cluster = (h['cluster'] as int?) ?? 0;
-                            final color = _clusterColors[cluster % _clusterColors.length];
+                            final color = _riskColor(h['risk'] as String?);
                             final isFocused = _focusedCluster == cluster;
                             return Marker(
                               point: LatLng(
@@ -118,7 +136,7 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
                                   color: color,
                                   border: Border.all(color: Colors.white, width: isFocused ? 3 : 2),
                                   boxShadow: isFocused
-                                      ? [BoxShadow(color: color.withOpacity(0.5), blurRadius: 12)]
+                                      ? [BoxShadow(color: color.withValues(alpha: 0.5), blurRadius: 12)]
                                       : [],
                                 ),
                                 child: Center(
@@ -136,27 +154,31 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
                     ),
                   ),
 
-                  // ── Legend row ─────────────────────────────────────────
+                  // ── Risk filter chips ────────────────────────────────
                   Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _grouped.keys.where((k) => k >= 0).map((k) {
-                          final color = _clusterColors[k % _clusterColors.length];
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 16),
-                            child: Row(children: [
-                              CircleAvatar(radius: 8, backgroundColor: color,
-                                child: Text('${k+1}', style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold))),
-                              const SizedBox(width: 6),
-                              Text('Cluster ${k + 1}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            ]),
-                          );
-                        }).toList(),
-                      ),
+                      child: Row(children: [
+                        _riskFilterChip('All', Colors.blueAccent, Icons.apps_rounded),
+                        const SizedBox(width: 8),
+                        _riskFilterChip('Danger', _dangerColor, Icons.warning_amber_rounded),
+                        const SizedBox(width: 8),
+                        _riskFilterChip('Caution', _cautionColor, Icons.info_rounded),
+                        const SizedBox(width: 8),
+                        _riskFilterChip('Safe', _safeColor, Icons.check_circle_rounded),
+                      ]),
                     ),
                   ),
 
@@ -164,21 +186,74 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
                   Expanded(
                     child: RefreshIndicator(
                       onRefresh: _load,
-                      child: ListView(
-                        padding: const EdgeInsets.all(16),
-                        children: _grouped.entries
-                            .where((e) => e.key >= 0)
-                            .map((e) => _buildClusterCard(e.key, e.value))
-                            .toList(),
-                      ),
+                      child: _filteredEntries.isEmpty
+                          ? _buildFilterEmpty()
+                          : ListView(
+                              padding: const EdgeInsets.all(16),
+                              children: _filteredEntries
+                                  .map((e) => _buildClusterCard(e.key, e.value))
+                                  .toList(),
+                            ),
                     ),
                   ),
                 ]),
     );
   }
 
+  Widget _riskFilterChip(String label, Color color, IconData icon) {
+    final bool selected = _riskFilter == label;
+    return GestureDetector(
+      onTap: () => setState(() => _riskFilter = label),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: selected ? color : color.withValues(alpha: 0.25),
+            width: 1.3,
+          ),
+          boxShadow: selected
+              ? [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 8, offset: const Offset(0, 3))]
+              : [],
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 14, color: selected ? Colors.white : color),
+          const SizedBox(width: 6),
+          Text(label,
+              style: TextStyle(
+                  color: selected ? Colors.white : color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12.5)),
+        ]),
+      ),
+    );
+  }
+
+  Widget _buildFilterEmpty() {
+    final color = _riskFilter == 'All' ? Colors.grey : _riskColor(_riskFilter);
+    return ListView(
+      // Keeps pull-to-refresh working even when the filtered list is empty
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: 120),
+        Center(
+          child: Column(children: [
+            Icon(Icons.filter_alt_off_rounded, size: 56, color: color.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            Text('No $_riskFilter zones',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          ]),
+        ),
+      ],
+    );
+  }
+
   Widget _buildClusterCard(int cluster, List<Map<String, dynamic>> members) {
-    final color = _clusterColors[cluster % _clusterColors.length];
+    final risk = members.isNotEmpty ? members.first['risk'] as String? : null;
+    final color = _riskColor(risk);
     final totalCrimes = members.fold<int>(0,
         (sum, h) => sum + ((h['crime_count'] as num?)?.toInt() ?? 0));
     final isFocused = _focusedCluster == cluster;
@@ -194,7 +269,7 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
           border: isFocused ? Border.all(color: color, width: 2) : null,
           boxShadow: [
             BoxShadow(
-              color: isFocused ? color.withOpacity(0.2) : Colors.black.withOpacity(0.05),
+              color: isFocused ? color.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
               blurRadius: isFocused ? 12 : 8,
               offset: const Offset(0, 3),
             ),
@@ -205,7 +280,7 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.08),
+              color: color.withValues(alpha: 0.08),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             ),
             child: Row(children: [
@@ -214,13 +289,25 @@ class _ClusterDetailPageState extends State<ClusterDetailPage> {
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Cluster ${cluster + 1}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
-                Text('${members.length} hotspot${members.length != 1 ? 's' : ''} · $totalCrimes total cases',
+                Row(children: [
+                  Text('Zone ${cluster + 1}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: color)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text((risk ?? 'Safe').toUpperCase(),
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                ]),
+                Text('${members.length} report${members.length != 1 ? 's' : ''} · $totalCrimes total cases',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ])),
               // Tap hint
-              Icon(Icons.location_on_rounded, color: color.withOpacity(0.5), size: 20),
+              Icon(Icons.location_on_rounded, color: color.withValues(alpha: 0.5), size: 20),
             ]),
           ),
           // Members

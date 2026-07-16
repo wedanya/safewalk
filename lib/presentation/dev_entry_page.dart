@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'admin/admin_main.dart';
 // Note: You'll need an entry point for your user side, 
 // usually a file that handles the BottomNavigationBar for user pages.
-import 'user/home_map_page.dart'; 
+import 'user/map_page.dart'; 
 
 class DevEntryPage extends StatelessWidget {
   const DevEntryPage({super.key});
@@ -45,7 +45,7 @@ class DevEntryPage extends StatelessWidget {
               label: "CITIZEN",
               icon: Icons.person,
               color: Colors.blueAccent,
-              destination: const HomeMapPage(), // Or your main user navigation file
+              destination: const MapPage(), // Or your main user navigation file
             ),
             
             const SizedBox(height: 40),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import '../auth/login_page.dart';
+import 'edit_profile_page.dart';
+import 'notification_preferences_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -18,9 +21,7 @@ class _ProfilePageState extends State<ProfilePage> {
   List<Map<String, dynamic>> _contacts = [];
 
   // Inline Expandable tracking state
-  String? _expandedSettingId; 
-  bool _enableGeofenceAlerts = true;
-  double _geofenceRadius = 2.0; // Default radius value in km
+  String? _expandedSettingId;
 
   // ─── Supabase client shorthand ────────────────────────────────────────────
   final _db = Supabase.instance.client;
@@ -56,10 +57,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
       if (mounted) {
         setState(() {
-          _profile              = data;
-          _enableGeofenceAlerts = (data?['alert_enabled']      as bool?)  ?? true;
-          _geofenceRadius       = ((data?['geofence_radius_km'] as num?)
-                                      ?.toDouble())                       ?? 2.0;
+          _profile = data;
         });
       }
     } catch (e) {
@@ -107,32 +105,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ─── 5. SAVE NOTIFICATION PREFERENCES to `profiles` table ───────────────
-  Future<void> _saveNotificationPrefs() async {
-    try {
-      final uid = _db.auth.currentUser?.id;
-      if (uid == null) return;
-      await _db.from('profiles').upsert({
-        'id':                  uid,
-        'alert_enabled':       _enableGeofenceAlerts,
-        'geofence_radius_km':  _geofenceRadius,
-        'updated_at':          DateTime.now().toUtc().toIso8601String(),
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text("✅ Notification preferences saved!"),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Error saving: $e"), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
+  // ─── 5. Notification preferences now live entirely in
+  //        NotificationPreferencesPage — see _buildAccountSettingsSection.
 
   // ─── 6. ADD CONTACT bottom sheet ─────────────────────────────────────────
   void _showAddContactDialog() {
@@ -488,23 +462,45 @@ final cacheBustedUrl = '${_db.storage.from('avatars').getPublicUrl(filePath)}?t=
   }
 
   Future<void> _logout() async {
-  try {
-    await _db.auth.signOut();
-
-    if (!mounted) return;
-
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      '/login',
-      (route) => false,
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Logout failed: $e'),
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Logout', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red, foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
       ),
     );
+    if (confirm != true) return;
+
+    try {
+      await _db.auth.signOut();
+      if (!mounted) return;
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginPage()),
+        (_) => false,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Logout failed: $e')),
+      );
+    }
   }
-}
 
   // ═══════════════════════════════════════════════════════════════════════════
   // BUILD
@@ -566,9 +562,20 @@ final cacheBustedUrl = '${_db.storage.from('avatars').getPublicUrl(filePath)}?t=
     );
   }
 
+  // ─── Navigate to Edit Profile, then refresh on return ────────────────────
+  Future<void> _openEditProfile() async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const EditProfilePage()),
+    );
+    if (changed == true) await _fetchProfile();
+  }
+
   // ─── User Header Widget ───────────────────────────────────────────────────
   Widget _buildUserHeader() {
-    final name = _profile?['full_name'] ?? "User";
+    // Username is the field actually written by sign-up/edit — this is also
+    // what shows up on comments, so keep the header in sync with it.
+    final name = (_profile?['username'] as String?) ?? "User";
     final membership = _profile?['membership'] ?? "Standard Member";
     final avatarUrl = _profile?['avatar_url'] as String?;
 
@@ -593,6 +600,18 @@ final cacheBustedUrl = '${_db.storage.from('avatars').getPublicUrl(filePath)}?t=
                   radius: 16,
                   backgroundColor: Color(0xFF3B71FE),
                   child: Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                child: GestureDetector(
+                  onTap: _openEditProfile,
+                  child: const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Color(0xFF22355F),
+                    child: Icon(Icons.edit_rounded, size: 15, color: Colors.white),
+                  ),
                 ),
               ),
             ],
@@ -721,6 +740,20 @@ final cacheBustedUrl = '${_db.storage.from('avatars').getPublicUrl(filePath)}?t=
             ),
           ],
         ),
+        const SizedBox(height: 6),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.vibration_rounded, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                "Shake your phone to call your emergency contact if you're in danger.",
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.3),
+              ),
+            ),
+          ],
+        ),
         const SizedBox(height: 10),
 
         if (_contacts.isEmpty)
@@ -822,78 +855,24 @@ final cacheBustedUrl = '${_db.storage.from('avatars').getPublicUrl(filePath)}?t=
           ),
         ),
 
-        // 2. Notification Preferences Accordion Panel (With interactive Slider)
-        _buildExpandableSettingTile(
-          id: 'notifications',
-          icon: Icons.notifications_none_rounded,
-          title: "Notification Preferences",
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text("Geofencing Incident Alerts", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF22355F))),
-                  subtitle: const Text("Receive danger alerts relative to your position", style: TextStyle(fontSize: 12)),
-                  value: _enableGeofenceAlerts,
-                  activeThumbColor: const Color(0xFF3B71FE),
-                  onChanged: (bool value) {
-                    setState(() {
-                      _enableGeofenceAlerts = value;
-                    });
-                  },
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text("Preferred Radius", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF22355F))),
-                    Text(
-                      _geofenceRadius == 0.0 ? "0 m (Exact Spot)" : "${_geofenceRadius.toStringAsFixed(1)} km",
-                      style: const TextStyle(color: Color(0xFF3B71FE), fontWeight: FontWeight.bold, fontSize: 14),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  "Alerts you about map incidents happening within this distance range boundary.",
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                ),
-                Slider(
-                  value: _geofenceRadius,
-                  min: 0.0,
-                  max: 10.0,
-                  divisions: 20,
-                  activeColor: const Color(0xFF3B71FE),
-                  inactiveColor: Colors.grey.shade200,
-                  onChanged: _enableGeofenceAlerts
-                      ? (double value) {
-                          setState(() {
-                            _geofenceRadius = value;
-                          });
-                        }
-                      : null,
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  height: 44,
-                  child: ElevatedButton.icon(
-                    onPressed: _saveNotificationPrefs,
-                    icon: const Icon(Icons.save_outlined, size: 17),
-                    label: const Text("Save Preferences",
-                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF3B71FE),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-              ],
+        // 2. Notification Preferences — opens the dedicated page
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withAlpha(2), blurRadius: 10, offset: const Offset(0, 5)),
+            ],
+          ),
+          child: ListTile(
+            leading: const Icon(Icons.notifications_none_rounded, color: Color(0xFF22355F), size: 20),
+            title: const Text("Notification Preferences",
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFF22355F))),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const NotificationPreferencesPage()),
             ),
           ),
         ),

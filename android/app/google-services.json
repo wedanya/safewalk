@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "365750482574",
+    "project_id": "send-push-e6999",
+    "storage_bucket": "send-push-e6999.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:365750482574:android:127666334f77428b8d7bdf",
+        "android_client_info": {
+          "package_name": "com.example.safewalk"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwCPUrIw-WQ0BOqIheUYPOg4aGth4zGCQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

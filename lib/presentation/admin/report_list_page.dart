@@ -36,60 +36,6 @@ class _ReportListPageState extends State<ReportListPage>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        title: const SizedBox.shrink(),
-        actions: [
-          BlocBuilder<AdminCubit, AdminState>(
-            builder: (context, state) {
-              if (state is AdminLoading) {
-                return const Padding(
-                  padding: EdgeInsets.only(right: 16),
-                  child: Center(
-                    child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2)),
-                  ),
-                );
-              }
-              return IconButton(
-                icon: const Icon(Icons.refresh, color: Colors.blue),
-                onPressed: () =>
-                    context.read<AdminCubit>().fetchPendingReports(),
-              );
-            },
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.blue,
-          unselectedLabelColor: Colors.grey,
-          indicatorColor: Colors.blue,
-          // Show live counts on each tab
-          tabs: [
-            BlocBuilder<AdminCubit, AdminState>(
-              builder: (context, state) {
-                final n = state is AdminLoaded ? state.pendingCount : 0;
-                return Tab(text: "Waiting${n > 0 ? ' ($n)' : ''}");
-              },
-            ),
-            BlocBuilder<AdminCubit, AdminState>(
-              builder: (context, state) {
-                final n = state is AdminLoaded ? state.verifiedCount : 0;
-                return Tab(text: "Verified${n > 0 ? ' ($n)' : ''}");
-              },
-            ),
-            BlocBuilder<AdminCubit, AdminState>(
-              builder: (context, state) {
-                final n = state is AdminLoaded ? state.dismissedCount : 0;
-                return Tab(text: "Dismissed${n > 0 ? ' ($n)' : ''}");
-              },
-            ),
-          ],
-        ),
-      ),
       body: BlocListener<AdminCubit, AdminState>(
         // Show snackbar on error without rebuilding the whole page
         listenWhen: (_, curr) => curr is AdminError,
@@ -101,9 +47,67 @@ class _ReportListPageState extends State<ReportListPage>
             ));
           }
         },
-        child: Column(
-          children: [
-            Padding(
+        child: SafeArea(
+          child: Column(
+            children: [
+              // ── Refresh button — compact, right-aligned, no title ──────
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    BlocBuilder<AdminCubit, AdminState>(
+                      builder: (context, state) {
+                        if (state is AdminLoading) {
+                          return const Padding(
+                            padding: EdgeInsets.all(8),
+                            child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2)),
+                          );
+                        }
+                        return IconButton(
+                          icon: const Icon(Icons.refresh, color: Colors.blue),
+                          onPressed: () =>
+                              context.read<AdminCubit>().fetchPendingReports(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Tab bar ──────────────────────────────────────────────
+              TabBar(
+                controller: _tabController,
+                labelColor: Colors.blue,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.blue,
+                // Show live counts on each tab
+                tabs: [
+                  BlocBuilder<AdminCubit, AdminState>(
+                    builder: (context, state) {
+                      final n = state is AdminLoaded ? state.pendingCount : 0;
+                      return Tab(text: "Waiting${n > 0 ? ' ($n)' : ''}");
+                    },
+                  ),
+                  BlocBuilder<AdminCubit, AdminState>(
+                    builder: (context, state) {
+                      final n = state is AdminLoaded ? state.verifiedCount : 0;
+                      return Tab(text: "Verified${n > 0 ? ' ($n)' : ''}");
+                    },
+                  ),
+                  BlocBuilder<AdminCubit, AdminState>(
+                    builder: (context, state) {
+                      final n = state is AdminLoaded ? state.dismissedCount : 0;
+                      return Tab(text: "Dismissed${n > 0 ? ' ($n)' : ''}");
+                    },
+                  ),
+                ],
+              ),
+
+              Padding(
               padding: const EdgeInsets.all(16.0),
               child: TextField(
                 onChanged: (value) =>
@@ -165,6 +169,7 @@ class _ReportListPageState extends State<ReportListPage>
               ),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -249,16 +254,24 @@ class _ReportListPageState extends State<ReportListPage>
       child: InkWell(
         borderRadius: BorderRadius.circular(15),
         onTap: () {
+          final cubit = context.read<AdminCubit>();
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ReportDetailsPage(
-                reportId: item['id']?.toString() ?? '',
-                status: status,
-                title: title,
-                location: (item['location'] ?? item['district'] ?? '').toString(),
-                dismissReason: item['dismiss_reason']?.toString(),
-                details: item['details']?.toString(),
+              builder: (_) => BlocProvider.value(
+                value: cubit,
+                child: ReportDetailsPage(
+                  reportId: item['id']?.toString() ?? '',
+                  status: status,
+                  title: title,
+                  location: (item['location'] ?? item['district'] ?? '').toString(),
+                  dismissReason: item['dismiss_reason']?.toString(),
+                  details: item['details']?.toString(),
+                  lat: (item['lat'] as num?)?.toDouble(),
+                  lng: (item['lng'] as num?)?.toDouble(),
+                  imageUrl: item['image_url']?.toString(),
+                  timestamp: (item['created_at'] ?? item['time'])?.toString(),
+                ),
               ),
             ),
           );

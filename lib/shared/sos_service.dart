@@ -13,9 +13,10 @@ class SosService {
   DateTime? _lastTriggered;
   bool _isRunning = false;
 
-  // Shake threshold — 18.0 is a firm deliberate shake
-  static const double _threshold = 18.0;
-  static const Duration _cooldown = Duration(seconds: 30);
+  // Shake threshold — 28.0 requires a firm, deliberate shake (gravity alone
+  // sits around ~9.8, normal walking/pocket jostling usually peaks ~12-16)
+  static const double _threshold = 28.0;
+  static const Duration _cooldown = Duration(seconds: 10);
 
   bool get isRunning => _isRunning;
 

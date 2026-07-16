@@ -60,19 +60,22 @@ class FeedCubit extends Cubit<FeedState> {
       final user = _db.auth.currentUser;
       if (user == null) return false;
 
-      // Fetch username from profiles
+      // Fetch username + avatar from profiles so comments always match
+      // whatever the person set on their Profile page.
       final profile = await _db
           .from('profiles')
-          .select('username')
+          .select('username, avatar_url')
           .eq('id', user.id)
           .maybeSingle();
-      final username = (profile?['username'] as String?) ?? 'Anonymous';
+      final username  = (profile?['username'] as String?) ?? 'Anonymous';
+      final avatarUrl = profile?['avatar_url'] as String?;
 
       await _db.from('report_comments').insert({
-        'report_id': reportId,
-        'user_id':   user.id,
-        'username':  username,
-        'body':      body.trim(),
+        'report_id':  reportId,
+        'user_id':    user.id,
+        'username':   username,
+        'avatar_url': avatarUrl,
+        'body':       body.trim(),
       });
       return true;
     } catch (_) {
@@ -80,12 +83,16 @@ class FeedCubit extends Cubit<FeedState> {
     }
   }
 
-  Future<void> deleteComment(String commentId) async {
+  Future<bool> deleteComment(String commentId) async {
     try {
-      await _db
+      final deleted = await _db
           .from('report_comments')
           .delete()
-          .eq('id', commentId);
-    } catch (_) {}
+          .eq('id', commentId)
+          .select();
+      return (deleted as List).isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'home_map_page.dart';
+import 'map_page.dart';
 import 'alerts_page.dart';
 import 'new_report_page.dart';
 import 'my_reports_page.dart';
 import 'profile_page.dart';
+import '../../shared/sos_service.dart';
+import '../../shared/sos_overlay.dart';
 
 class UserMain extends StatefulWidget {
   const UserMain({super.key});
@@ -12,24 +14,58 @@ class UserMain extends StatefulWidget {
   State<UserMain> createState() => _UserMainState();
 }
 
-class _UserMainState extends State<UserMain> {
+class _UserMainState extends State<UserMain> with WidgetsBindingObserver {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = [
-    const HomeMapPage(),      // index 0
-    const AlertsPage(),       // index 1
-    const NewReportPage(),    // index 2  (centre + button)
+  // Alerts (0) first, Map (1) second
+  List<Widget> get _pages => [
+    const AlertsPage(),       // index 0 — first tab
+    const MapPage(),      // index 1 — map
+    NewReportPage(            // index 2 — centre +
+      onSubmitSuccess: () => setState(() => _currentIndex = 0),
+    ),
     const MyReportsPage(),    // index 3
     const ProfilePage(),      // index 4
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    SosService.instance.start(() {
+      if (mounted) SosOverlay.show(context);
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    SosService.instance.stop();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (!SosService.instance.isRunning) {
+        SosService.instance.start(() {
+          if (mounted) SosOverlay.show(context);
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
+      // SafeArea fits content to phone screen, bottom:false lets dock float
+      body: SafeArea(
+        bottom: false,
+        child: IndexedStack(
+          index: _currentIndex,
+          children: _pages,
+        ),
       ),
       bottomNavigationBar: _buildFloatingDock(),
     );
@@ -47,9 +83,11 @@ class _UserMainState extends State<UserMain> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildNavItem(Icons.map_outlined, Icons.map, 0),
-          _buildNavItem(Icons.notifications_none, Icons.notifications, 1),
-          // Centre + button (new_report_page, index 2)
+          // Alerts first
+          _buildNavItem(Icons.notifications_none, Icons.notifications, 0),
+          // Map second
+          _buildNavItem(Icons.map_outlined, Icons.map, 1),
+          // Centre + button
           GestureDetector(
             onTap: () => setState(() => _currentIndex = 2),
             child: Container(
@@ -76,8 +114,7 @@ class _UserMainState extends State<UserMain> {
         padding: const EdgeInsets.all(12),
         decoration: isActive
             ? BoxDecoration(
-                // ignore: deprecated_member_use
-                color: const Color(0xFF3B71FE).withOpacity(0.1),
+                color: const Color(0xFF3B71FE).withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               )
             : null,

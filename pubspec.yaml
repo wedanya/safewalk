@@ -24,6 +24,8 @@ dependencies:
   geocoding: ^3.0.0        # For turning text into coordinates
   flutter_map_animations: 0.8.0
   flutter_local_notifications: ^17.0.0
+  firebase_core: ^3.8.0
+  firebase_messaging: ^15.1.6
   shared_preferences: ^2.2.3   # offline cache storage
   connectivity_plus: ^6.0.3    # network status watcher
   image_picker: ^1.2.2

@@ -1,18 +1,39 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+import 'notification_service.dart'; 
 import 'presentation/auth/login_page.dart';
 import 'presentation/user/user_main.dart';
 import 'presentation/admin/admin_main.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   await Supabase.initialize(
     url: 'https://mrudrkobwnxnmiyekwhp.supabase.co',
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ydWRya29id254bm1peWVrd2hwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NjExNzEsImV4cCI6MjA5NDEzNzE3MX0.OV_MwKoR4F8L-jMJHzuF2BaBIdfmIdIt80a_ODmgeIg',
   );
+
+  // ── Global auth listener ───────────────────────────────────────────────
+  // This is the actual fix: instead of adding NotificationService.init()
+  // to every single place that can log someone in (LoginPage, SignupPage,
+  // Google sign-in, session restore in AuthGate, etc.) and risking missing
+  // one, we listen to Supabase's own auth stream ONCE here. Any time a
+  // session becomes active — no matter which page or method caused it —
+  // this fires. Not awaited, so it can never block anything.
+  Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+    final event = data.event;
+    if (event == AuthChangeEvent.signedIn ||
+        event == AuthChangeEvent.tokenRefreshed ||
+        event == AuthChangeEvent.initialSession) {
+      // ignore: unawaited_futures
+      NotificationService.init();
+    }
+  });
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -81,6 +102,9 @@ class _AuthGateState extends State<AuthGate> {
           .maybeSingle();
 
       _resolve(admin != null ? const AdminMain() : const UserMain());
+      // NotificationService.init() is now handled entirely by the global
+      // auth listener in main() — it fires on this same initial session
+      // too, so no separate call is needed here.
     } catch (_) {
       // Any error → send to login
       _resolve(const LoginPage());

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'login_page.dart';
+// ignore: unnecessary_import
+import 'package:flutter/foundation.dart';
 
 // ── Avatar preset definitions (mirrors profile_page) ──────────────────────────
 class _AvatarPreset {
@@ -218,7 +220,7 @@ class _SignUpPageState extends State<SignUpPage> {
           icon: const Icon(Icons.arrow_back, color: Colors.black87),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("Create Account",
+        title: const Text("Sign Up",
             style: TextStyle(color: Color(0xFF22355F), fontWeight: FontWeight.w600, fontSize: 18)),
         centerTitle: true,
       ),
@@ -241,7 +243,7 @@ class _SignUpPageState extends State<SignUpPage> {
           const SizedBox(height: 8),
           _field(
             controller: _usernameCtrl,
-            hint: "e.g. ahmad_faris",
+            hint: "e.g. ahmad_faris562",
             icon: Icons.alternate_email_rounded,
           ),
           const SizedBox(height: 6),
@@ -322,22 +324,40 @@ class _SignUpPageState extends State<SignUpPage> {
 
           // ── Submit ────────────────────────────────────────────────────────
           SizedBox(
-            width: double.infinity, height: 56,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF3B71FE),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              onPressed: _isLoading ? null : _signUp,
-              child: _isLoading
-                  ? const SizedBox(width: 22, height: 22,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text("Create Account",
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ),
-          const SizedBox(height: 20),
+  width: double.infinity, height: 56,
+  child: ElevatedButton(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: const Color(0xFF3B71FE),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 0,
+    ),
+    onPressed: _isLoading ? null : () async {
+      // ── TEMPORARY DEBUG TEST — remove this block once the push
+      // pipeline is confirmed working, then restore to just: _signUp
+      final res = await Supabase.instance.client.functions.invoke(
+        'send-push',
+        body: {
+          'record': {
+            'user_id': 'c24ed0aa-0f40-4641-9d1f-e706ae03265c',
+            'title': 'Test push',
+            'body': 'Testing the pipeline directly',
+          }
+        },
+      );
+      debugPrint('PUSH TEST status: ${res.status}');
+      debugPrint('PUSH TEST data: ${res.data}');
+      // ── end debug block ──
+
+      await _signUp();
+    },
+    child: _isLoading
+        ? const SizedBox(width: 22, height: 22,
+            child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+        : const Text("Create Account",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+  ),
+),
+const SizedBox(height: 20),
 
           // ── Back to login ─────────────────────────────────────────────────
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
